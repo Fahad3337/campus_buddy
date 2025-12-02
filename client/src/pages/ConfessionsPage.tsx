@@ -469,15 +469,6 @@ const ConfessionsPage: React.FC = () => {
           <p className="text-gray-600">Share your thoughts anonymously - completely private and safe</p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => addDummyConfessionsMutation.mutate()}
-            disabled={addDummyConfessionsMutation.isPending}
-            loading={addDummyConfessionsMutation.isPending}
-          >
-            <SparklesIcon className="h-4 w-4 mr-2" />
-            Add Sample Data
-          </Button>
           <Button onClick={() => setIsCreateModalOpen(true)}>
             <PlusIcon className="h-5 w-5 mr-2" />
             Share Confession

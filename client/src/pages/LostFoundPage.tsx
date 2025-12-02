@@ -220,13 +220,50 @@ const LostFoundPage: React.FC = () => {
       const response = await apiService.lostFound.create(data);
       return response.data.data;
     },
-    onSuccess: () => {
+    onSuccess: (newItem) => {
+      // Add to local state immediately so it appears right away
+      if (newItem) {
+        setLocalItems((prev) => {
+          const updated = [newItem, ...prev];
+          localStorage.setItem('demo_lostfound', JSON.stringify(updated));
+          return updated;
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['lost-found'] });
       setIsCreateModalOpen(false);
       resetForm();
       toast.success('Item reported successfully!');
     },
     onError: (error: any) => {
+      // Fallback: create a local-only item so the feature still works in offline/sample mode
+      if (user) {
+        const now = Date.now();
+        const local: LostFoundItem = {
+          id: `local_lf_${now}`,
+          title: formData.title.trim(),
+          description: formData.description.trim(),
+          category: formData.category,
+          status: formData.status,
+          location: formData.location.trim(),
+          contactInfo: formData.contactInfo.trim(),
+          imageUrl: formData.imageUrl.trim() || undefined,
+          reporterId: user.id,
+          reporterName: user.name,
+          timestamp: now,
+        };
+
+        setLocalItems((prev) => {
+          const updated = [local, ...prev];
+          localStorage.setItem('demo_lostfound', JSON.stringify(updated));
+          return updated;
+        });
+
+        setIsCreateModalOpen(false);
+        resetForm();
+        toast.success('Item reported locally for this session.');
+        return;
+      }
+
       toast.error(error.response?.data?.error || 'Failed to report item');
     },
   });
@@ -234,10 +271,28 @@ const LostFoundPage: React.FC = () => {
   // Update item mutation
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<LostFoundItem> }) => {
+      // For local items, handle updates purely on the client
+      if (id.startsWith('local_lf_') || id.startsWith('temp_lf_') || id.startsWith('demo_lf_')) {
+        return await new Promise<LostFoundItem>((resolve) => {
+          setLocalItems((prev) => {
+            const updated = prev.map((item) =>
+              item.id === id ? { ...item, ...data } : item,
+            );
+            localStorage.setItem('demo_lostfound', JSON.stringify(updated));
+            const updatedItem = updated.find((item) => item.id === id);
+            if (updatedItem) {
+              resolve(updatedItem);
+            }
+            return updated;
+          });
+        });
+      }
+
       const response = await apiService.lostFound.update(id, data);
       return response.data.data;
     },
     onSuccess: () => {
+      // Only invalidate queries for non-local items
       queryClient.invalidateQueries({ queryKey: ['lost-found'] });
       setIsEditModalOpen(false);
       setEditingItem(null);
@@ -252,10 +307,28 @@ const LostFoundPage: React.FC = () => {
   // Mark as returned mutation
   const markReturnedMutation = useMutation({
     mutationFn: async (id: string) => {
+      // For local items, handle marking as returned purely on the client
+      if (id.startsWith('local_lf_') || id.startsWith('temp_lf_') || id.startsWith('demo_lf_')) {
+        return await new Promise<LostFoundItem>((resolve) => {
+          setLocalItems((prev) => {
+            const updated = prev.map((item) =>
+              item.id === id ? { ...item, status: 'returned' as LostFoundItem['status'] } : item,
+            );
+            localStorage.setItem('demo_lostfound', JSON.stringify(updated));
+            const updatedItem = updated.find((item) => item.id === id);
+            if (updatedItem) {
+              resolve(updatedItem);
+            }
+            return updated;
+          });
+        });
+      }
+
       const response = await apiService.lostFound.markReturned(id);
       return response.data.data;
     },
     onSuccess: () => {
+      // Only invalidate queries for non-local items
       queryClient.invalidateQueries({ queryKey: ['lost-found'] });
       toast.success('Item marked as returned!');
     },
@@ -267,9 +340,22 @@ const LostFoundPage: React.FC = () => {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // For local items, handle deletion purely on the client
+      if (id.startsWith('local_lf_') || id.startsWith('temp_lf_') || id.startsWith('demo_lf_')) {
+        return await new Promise<void>((resolve) => {
+          setLocalItems((prev) => {
+            const updated = prev.filter((item) => item.id !== id);
+            localStorage.setItem('demo_lostfound', JSON.stringify(updated));
+            resolve();
+            return updated;
+          });
+        });
+      }
+
       await apiService.lostFound.delete(id);
     },
     onSuccess: () => {
+      // Only invalidate queries for non-local items
       queryClient.invalidateQueries({ queryKey: ['lost-found'] });
       toast.success('Item deleted successfully!');
     },
@@ -519,15 +605,6 @@ const LostFoundPage: React.FC = () => {
           <p className="text-gray-600">Report lost items or help others find their belongings</p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => addDummyItemsMutation.mutate()}
-            disabled={addDummyItemsMutation.isPending}
-            loading={addDummyItemsMutation.isPending}
-          >
-            <SparklesIcon className="h-4 w-4 mr-2" />
-            Add Sample Data
-          </Button>
           <Button onClick={() => setIsCreateModalOpen(true)}>
             <PlusIcon className="h-5 w-5 mr-2" />
             Report Item

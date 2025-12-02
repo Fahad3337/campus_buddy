@@ -560,21 +560,10 @@ const AnnouncementsPage: React.FC = () => {
         </div>
         <div className="flex gap-2">
           {canCreate && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => addDummyAnnouncementsMutation.mutate()}
-                disabled={addDummyAnnouncementsMutation.isPending}
-                loading={addDummyAnnouncementsMutation.isPending}
-              >
-                <SparklesIcon className="h-4 w-4 mr-2" />
-            Add Sample Data
-              </Button>
-              <Button onClick={() => setIsCreateModalOpen(true)}>
-                <PlusIcon className="h-5 w-5 mr-2" />
-                Create Announcement
-              </Button>
-            </>
+            <Button onClick={() => setIsCreateModalOpen(true)}>
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Create Announcement
+            </Button>
           )}
         </div>
       </div>

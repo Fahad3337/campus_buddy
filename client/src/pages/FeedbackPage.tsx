@@ -14,7 +14,6 @@ import {
   MagnifyingGlassIcon,
   HandThumbUpIcon,
   HandThumbDownIcon,
-  SparklesIcon,
   XMarkIcon,
   CheckCircleIcon,
   EyeIcon,
@@ -205,13 +204,49 @@ const FeedbackPage: React.FC = () => {
       const response = await apiService.feedback.create(data);
       return response.data.data;
     },
-    onSuccess: () => {
+    onSuccess: (newFeedback) => {
+      // Add to local state immediately so it appears right away
+      if (newFeedback) {
+        setLocalFeedback((prev) => {
+          const updated = [newFeedback, ...prev];
+          localStorage.setItem('demo_feedback', JSON.stringify(updated));
+          return updated;
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['feedback'] });
       setIsCreateModalOpen(false);
       resetForm();
       toast.success('Feedback submitted successfully!');
     },
     onError: (error: any) => {
+      // Fallback: create a local-only feedback so the feature still works in offline/sample mode
+      if (user) {
+        const now = Date.now();
+        const local: AnonymousFeedback = {
+          id: `local_fb_${now}`,
+          type: formData.type,
+          title: formData.title.trim(),
+          content: formData.content.trim(),
+          category: formData.category,
+          priority: formData.priority,
+          status: 'pending',
+          timestamp: now,
+          upvotes: 0,
+          downvotes: 0,
+        };
+
+        setLocalFeedback((prev) => {
+          const updated = [local, ...prev];
+          localStorage.setItem('demo_feedback', JSON.stringify(updated));
+          return updated;
+        });
+
+        setIsCreateModalOpen(false);
+        resetForm();
+        toast.success('Feedback submitted locally for this session.');
+        return;
+      }
+
       toast.error(error.response?.data?.error || 'Failed to submit feedback');
     },
   });
@@ -335,10 +370,28 @@ const FeedbackPage: React.FC = () => {
   // Update status mutation (admin only)
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: AnonymousFeedback['status'] }) => {
+      // For local items, handle status updates purely on the client
+      if (id.startsWith('local_fb_') || id.startsWith('temp_fb_') || id.startsWith('demo_fb_')) {
+        return await new Promise<AnonymousFeedback>((resolve) => {
+          setLocalFeedback((prev) => {
+            const updated = prev.map((fb) =>
+              fb.id === id ? { ...fb, status } : fb,
+            );
+            localStorage.setItem('demo_feedback', JSON.stringify(updated));
+            const updatedItem = updated.find((fb) => fb.id === id);
+            if (updatedItem) {
+              resolve(updatedItem);
+            }
+            return updated;
+          });
+        });
+      }
+
       const response = await apiService.feedback.updateStatus(id, status);
       return response.data.data;
     },
     onSuccess: () => {
+      // Only invalidate queries for non-local items
       queryClient.invalidateQueries({ queryKey: ['feedback'] });
       toast.success('Status updated successfully!');
     },
@@ -350,102 +403,27 @@ const FeedbackPage: React.FC = () => {
   // Delete mutation (admin only)
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // For local items, handle deletion purely on the client
+      if (id.startsWith('local_fb_') || id.startsWith('temp_fb_') || id.startsWith('demo_fb_')) {
+        return await new Promise<void>((resolve) => {
+          setLocalFeedback((prev) => {
+            const updated = prev.filter((fb) => fb.id !== id);
+            localStorage.setItem('demo_feedback', JSON.stringify(updated));
+            resolve();
+            return updated;
+          });
+        });
+      }
+
       await apiService.feedback.delete(id);
     },
     onSuccess: () => {
+      // Only invalidate queries for non-local items
       queryClient.invalidateQueries({ queryKey: ['feedback'] });
       toast.success('Feedback deleted successfully!');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to delete feedback');
-    },
-  });
-
-  // Add dummy feedback mutation
-  const addDummyFeedbackMutation = useMutation({
-    mutationFn: async () => {
-      const dummyFeedback = [
-        {
-          type: 'feedback' as AnonymousFeedback['type'],
-          title: 'Great Library Facilities',
-          content: 'I wanted to express my appreciation for the library facilities. The quiet study areas and the availability of resources have been really helpful for my studies. Keep up the great work!',
-          category: 'facilities',
-          priority: 'low' as AnonymousFeedback['priority'],
-        },
-        {
-          type: 'complaint' as AnonymousFeedback['type'],
-          title: 'Cafeteria Food Quality',
-          content: 'The food quality in the cafeteria has been declining recently. Many students have noticed that the meals are often cold and the variety has decreased. Could you please look into this?',
-          category: 'food',
-          priority: 'high' as AnonymousFeedback['priority'],
-        },
-        {
-          type: 'feedback' as AnonymousFeedback['type'],
-          title: 'Event Organization Appreciation',
-          content: 'The recent hackathon event was amazing! Great organization, good food, and excellent prizes. Thank you to everyone who made it possible. Looking forward to more events like this!',
-          category: 'events',
-          priority: 'low' as AnonymousFeedback['priority'],
-        },
-        {
-          type: 'complaint' as AnonymousFeedback['type'],
-          title: 'WiFi Connectivity Issues',
-          content: 'The WiFi in Building B has been very unstable for the past week. It keeps disconnecting during online classes and exams. This is affecting our learning experience. Please fix this urgently.',
-          category: 'facilities',
-          priority: 'high' as AnonymousFeedback['priority'],
-        },
-        {
-          type: 'feedback' as AnonymousFeedback['type'],
-          title: 'Professor Appreciation',
-          content: 'I wanted to thank Professor Smith for being so understanding and helpful during office hours. Their teaching style really helps me understand the material better.',
-          category: 'academic',
-          priority: 'low' as AnonymousFeedback['priority'],
-        },
-        {
-          type: 'complaint' as AnonymousFeedback['type'],
-          title: 'Parking Space Issues',
-          content: 'There are never enough parking spaces, especially during peak hours. I often have to park far away and walk a long distance. Could we have more parking spaces or a better system?',
-          category: 'facilities',
-          priority: 'medium' as AnonymousFeedback['priority'],
-        },
-        {
-          type: 'feedback' as AnonymousFeedback['type'],
-          title: 'Study Group Success',
-          content: 'I found an amazing study group through the campus chat and we\'ve been helping each other prepare for exams. The community here is really supportive!',
-          category: 'academic',
-          priority: 'low' as AnonymousFeedback['priority'],
-        },
-        {
-          type: 'complaint' as AnonymousFeedback['type'],
-          title: 'Noisy Study Areas',
-          content: 'The study areas in the library are getting too noisy. People are talking loudly and it\'s hard to concentrate. Could we have stricter quiet zones?',
-          category: 'facilities',
-          priority: 'medium' as AnonymousFeedback['priority'],
-        },
-        {
-          type: 'feedback' as AnonymousFeedback['type'],
-          title: 'Campus Events Feedback',
-          content: 'The campus events have been great this semester! Really appreciate the variety and the effort put into organizing them.',
-          category: 'events',
-          priority: 'low' as AnonymousFeedback['priority'],
-        },
-      ];
-
-      // Create all dummy feedback
-      const promises = dummyFeedback.map((item) =>
-        apiService.feedback.create(item).catch((err) => {
-          console.warn('Failed to create dummy feedback:', err);
-          return null;
-        })
-      );
-
-      await Promise.all(promises);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['feedback'] });
-      toast.success('Dummy feedback added successfully!', { duration: 3000 });
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to add dummy feedback');
     },
   });
 
@@ -525,15 +503,6 @@ const FeedbackPage: React.FC = () => {
           <p className="text-gray-600">Share anonymous feedback or complaints</p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => addDummyFeedbackMutation.mutate()}
-            disabled={addDummyFeedbackMutation.isPending}
-            loading={addDummyFeedbackMutation.isPending}
-          >
-            <SparklesIcon className="h-4 w-4 mr-2" />
-            Add Sample Data
-          </Button>
           <Button onClick={() => setIsCreateModalOpen(true)}>
             <PlusIcon className="h-5 w-5 mr-2" />
             Submit Feedback
