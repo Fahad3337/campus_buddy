@@ -23,6 +23,6 @@
     "VITE_FIREBASE_STORAGE_BUCKET": "campusbuddy-f5592.firebasestorage.app",
     "VITE_FIREBASE_MESSAGING_SENDER_ID": "190388904782",
     "VITE_FIREBASE_APP_ID": "1:190388904782:web:12973172e6a356c966f41f",
-    "VITE_API_URL": "https://campus-buddy123.vercel.app"
+    "VITE_API_URL": "https://campus-buddy-server.onrender.com"
   }
 }
