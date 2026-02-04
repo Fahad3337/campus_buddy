@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "name": "campus-buddy-monorepo",
+  "buildCommand": "npm run build",
+  "outputDirectory": "client/dist",
+  "installCommand": "npm run install:all",
+  "framework": "vite",
+  "functions": {
+    "server/api/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

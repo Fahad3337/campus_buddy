@@ -19,4 +19,16 @@ export default defineConfig({
       allow: ['..'],
     },
   },
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Suppress warnings about missing exports
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
+        warn(warning);
+      },
+    },
+  },
+  esbuild: {
+    target: 'es2015',
+  },
 })
